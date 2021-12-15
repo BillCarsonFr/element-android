@@ -95,7 +95,7 @@ internal class SasVerification(
      *
      * The method turns into a noop, if the verification flow has already been cancelled.
      * */
-    override fun cancel() {
+    override suspend fun cancel() {
         this.cancelHelper(CancelCode.User)
     }
 
@@ -110,7 +110,7 @@ internal class SasVerification(
      *
      * @param code The cancel code that should be given as the reason for the cancellation.
      * */
-    override fun cancel(code: CancelCode) {
+    override suspend fun cancel(code: CancelCode) {
         this.cancelHelper(code)
     }
 

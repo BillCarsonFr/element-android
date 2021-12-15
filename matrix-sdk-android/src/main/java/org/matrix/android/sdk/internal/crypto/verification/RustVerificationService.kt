@@ -224,13 +224,13 @@ internal class RustVerificationService @Inject constructor(private val olmMachin
         return null
     }
 
-    override fun requestKeyVerification(
+    override suspend fun requestKeyVerification(
             methods: List<VerificationMethod>,
             otherUserId: String,
             otherDevices: List<String>?
     ): PendingVerificationRequest {
-        val verification = when (val identity = runBlocking { olmMachine.getIdentity(otherUserId) }) {
-            is OwnUserIdentity -> runBlocking { identity.requestVerification(methods) }
+        val verification = when (val identity = olmMachine.getIdentity(otherUserId)) {
+            is OwnUserIdentity -> identity.requestVerification(methods)
             is UserIdentity    -> throw IllegalArgumentException("This method doesn't support verification of other users devices")
             null               -> throw IllegalArgumentException("Cross signing has not been bootstrapped for our own user")
         }

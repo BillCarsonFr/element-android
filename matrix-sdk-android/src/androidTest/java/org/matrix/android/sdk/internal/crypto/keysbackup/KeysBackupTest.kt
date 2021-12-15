@@ -819,7 +819,10 @@ class KeysBackupTest : InstrumentedTest {
         val signature = keysBackupVersionTrust.signatures[0]
         assertTrue(signature.valid)
         assertNotNull(signature.device)
-        assertEquals(cryptoTestData.firstSession.cryptoService().getMyDevice().deviceId, signature.deviceId)
+        val deviceId = mTestHelper.runBlockingTest {
+            cryptoTestData.firstSession.cryptoService().getMyDevice().deviceId
+        }
+        assertEquals(deviceId, signature.deviceId)
         assertEquals(signature.device!!.deviceId, cryptoTestData.firstSession.sessionParams.deviceId)
 
         stateObserver.stopAndCheckStates(null)

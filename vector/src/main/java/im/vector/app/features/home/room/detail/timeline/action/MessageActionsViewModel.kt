@@ -40,6 +40,7 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import org.matrix.android.sdk.api.extensions.orFalse
 import org.matrix.android.sdk.api.session.Session
 import org.matrix.android.sdk.api.session.crypto.keysbackup.KeysBackupState
@@ -160,12 +161,15 @@ class MessageActionsViewModel @AssistedInject constructor(@Assisted
         onEach(MessageActionState::timelineEvent, MessageActionState::actionPermissions) { timelineEvent, permissions ->
             val nonNullTimelineEvent = timelineEvent() ?: return@onEach
             eventIdFlow.tryEmit(nonNullTimelineEvent.eventId)
-            setState {
-                copy(
-                        eventId = nonNullTimelineEvent.eventId,
-                        messageBody = computeMessageBody(nonNullTimelineEvent),
-                        actions = actionsForEvent(nonNullTimelineEvent, permissions)
-                )
+            viewModelScope.launch {
+                val actions = actionsForEvent(nonNullTimelineEvent, permissions)
+                setState {
+                    copy(
+                            eventId = nonNullTimelineEvent.eventId,
+                            messageBody = computeMessageBody(nonNullTimelineEvent),
+                            actions = actions
+                    )
+                }
             }
         }
     }
@@ -239,7 +243,7 @@ class MessageActionsViewModel @AssistedInject constructor(@Assisted
                 }
     }
 
-    private fun actionsForEvent(timelineEvent: TimelineEvent, actionPermissions: ActionPermissions): List<EventSharedAction> {
+    private suspend fun actionsForEvent(timelineEvent: TimelineEvent, actionPermissions: ActionPermissions): List<EventSharedAction> {
         val messageContent = timelineEvent.getLastMessageContent()
         val msgType = messageContent?.msgType
 
@@ -310,10 +314,10 @@ class MessageActionsViewModel @AssistedInject constructor(@Assisted
         // TODO sent by me or sufficient power level
     }
 
-    private fun ArrayList<EventSharedAction>.addActionsForSyncedState(timelineEvent: TimelineEvent,
-                                                                      actionPermissions: ActionPermissions,
-                                                                      messageContent: MessageContent?,
-                                                                      msgType: String?) {
+    private suspend fun ArrayList<EventSharedAction>.addActionsForSyncedState(timelineEvent: TimelineEvent,
+                                                                              actionPermissions: ActionPermissions,
+                                                                              messageContent: MessageContent?,
+                                                                              msgType: String?) {
         val eventId = timelineEvent.eventId
         if (!timelineEvent.root.isRedacted()) {
             if (canReply(timelineEvent, messageContent, actionPermissions)) {

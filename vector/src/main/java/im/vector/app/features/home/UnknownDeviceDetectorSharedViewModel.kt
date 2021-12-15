@@ -35,6 +35,7 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.sample
+import kotlinx.coroutines.launch
 import org.matrix.android.sdk.api.NoOpMatrixCallback
 import org.matrix.android.sdk.api.extensions.orFalse
 import org.matrix.android.sdk.api.session.Session
@@ -74,63 +75,64 @@ class UnknownDeviceDetectorSharedViewModel @AssistedInject constructor(@Assisted
     private val ignoredDeviceList = ArrayList<String>()
 
     init {
+        viewModelScope.launch {
+            val currentSessionTs = session.cryptoService().getCryptoDeviceInfo(session.myUserId)
+                    .firstOrNull { it.deviceId == session.sessionParams.deviceId }
+                    ?.firstTimeSeenLocalTs
+                    ?: System.currentTimeMillis()
+            Timber.v("## Detector - Current Session first time seen $currentSessionTs")
 
-        val currentSessionTs = session.cryptoService().getCryptoDeviceInfo(session.myUserId)
-                .firstOrNull { it.deviceId == session.sessionParams.deviceId }
-                ?.firstTimeSeenLocalTs
-                ?: System.currentTimeMillis()
-        Timber.v("## Detector - Current Session first time seen $currentSessionTs")
-
-        ignoredDeviceList.addAll(
-                vectorPreferences.getUnknownDeviceDismissedList().also {
-                    Timber.v("## Detector - Remembered ignored list $it")
-                }
-        )
-
-        combine(
-                session.flow().liveUserCryptoDevices(session.myUserId),
-                session.flow().liveMyDevicesInfo(),
-                session.flow().liveCrossSigningPrivateKeys()
-        ) { cryptoList, infoList, pInfo ->
-            //                    Timber.v("## Detector trigger ${cryptoList.map { "${it.deviceId} ${it.trustLevel}" }}")
-//                    Timber.v("## Detector trigger canCrossSign ${pInfo.get().selfSigned != null}")
-            infoList
-                    .filter { info ->
-                        // filter verified session, by checking the crypto device info
-                        cryptoList.firstOrNull { info.deviceId == it.deviceId }?.isVerified?.not().orFalse()
+            ignoredDeviceList.addAll(
+                    vectorPreferences.getUnknownDeviceDismissedList().also {
+                        Timber.v("## Detector - Remembered ignored list $it")
                     }
-                    // filter out ignored devices
-                    .filter { !ignoredDeviceList.contains(it.deviceId) }
-                    .sortedByDescending { it.lastSeenTs }
-                    .map { deviceInfo ->
-                        val deviceKnownSince = cryptoList.firstOrNull { it.deviceId == deviceInfo.deviceId }?.firstTimeSeenLocalTs ?: 0
-                        DeviceDetectionInfo(
-                                deviceInfo,
-                                deviceKnownSince > currentSessionTs + 60_000, // short window to avoid false positive,
-                                pInfo.getOrNull()?.selfSigned != null // adding this to pass distinct when cross sign change
+            )
+
+            combine(
+                    session.flow().liveUserCryptoDevices(session.myUserId),
+                    session.flow().liveMyDevicesInfo(),
+                    session.flow().liveCrossSigningPrivateKeys()
+            ) { cryptoList, infoList, pInfo ->
+                //                    Timber.v("## Detector trigger ${cryptoList.map { "${it.deviceId} ${it.trustLevel}" }}")
+//                    Timber.v("## Detector trigger canCrossSign ${pInfo.get().selfSigned != null}")
+                infoList
+                        .filter { info ->
+                            // filter verified session, by checking the crypto device info
+                            cryptoList.firstOrNull { info.deviceId == it.deviceId }?.isVerified?.not().orFalse()
+                        }
+                        // filter out ignored devices
+                        .filter { !ignoredDeviceList.contains(it.deviceId) }
+                        .sortedByDescending { it.lastSeenTs }
+                        .map { deviceInfo ->
+                            val deviceKnownSince = cryptoList.firstOrNull { it.deviceId == deviceInfo.deviceId }?.firstTimeSeenLocalTs ?: 0
+                            DeviceDetectionInfo(
+                                    deviceInfo,
+                                    deviceKnownSince > currentSessionTs + 60_000, // short window to avoid false positive,
+                                    pInfo.getOrNull()?.selfSigned != null // adding this to pass distinct when cross sign change
+                            )
+                        }
+            }
+                    .distinctUntilChanged()
+                    .execute { async ->
+                        //                    Timber.v("## Detector trigger passed distinct")
+                        copy(
+                                myMatrixItem = session.getUser(session.myUserId)?.toMatrixItem(),
+                                unknownSessions = async
                         )
                     }
+
+            session.flow().liveUserCryptoDevices(session.myUserId)
+                    .distinctUntilChanged()
+                    .sample(5_000)
+                    .onEach {
+                        // If we have a new crypto device change, we might want to trigger refresh of device info
+                        session.cryptoService().fetchDevicesList(NoOpMatrixCallback())
+                    }
+                    .launchIn(viewModelScope)
+
+            // trigger a refresh of lastSeen / last Ip
+            session.cryptoService().fetchDevicesList(NoOpMatrixCallback())
         }
-                .distinctUntilChanged()
-                .execute { async ->
-                    //                    Timber.v("## Detector trigger passed distinct")
-                    copy(
-                            myMatrixItem = session.getUser(session.myUserId)?.toMatrixItem(),
-                            unknownSessions = async
-                    )
-                }
-
-        session.flow().liveUserCryptoDevices(session.myUserId)
-                .distinctUntilChanged()
-                .sample(5_000)
-                .onEach {
-                    // If we have a new crypto device change, we might want to trigger refresh of device info
-                    session.cryptoService().fetchDevicesList(NoOpMatrixCallback())
-                }
-                .launchIn(viewModelScope)
-
-        // trigger a refresh of lastSeen / last Ip
-        session.cryptoService().fetchDevicesList(NoOpMatrixCallback())
     }
 
     override fun handle(action: Action) {

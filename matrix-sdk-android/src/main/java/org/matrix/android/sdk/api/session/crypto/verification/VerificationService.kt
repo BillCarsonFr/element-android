@@ -64,7 +64,7 @@ interface VerificationService {
     /**
      * Request a key verification from another user using toDevice events.
      */
-    fun requestKeyVerification(methods: List<VerificationMethod>,
+    suspend fun requestKeyVerification(methods: List<VerificationMethod>,
                                otherUserId: String,
                                otherDevices: List<String>?): PendingVerificationRequest
 

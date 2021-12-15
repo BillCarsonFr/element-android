@@ -289,17 +289,21 @@ class MessageComposerViewModel @AssistedInject constructor(
                             popDraft()
                         }
                         is ParsedCommand.DiscardSession           -> {
-                            if (room.isEncrypted()) {
-                                session.cryptoService().discardOutboundSession(room.roomId)
-                                _viewEvents.post(MessageComposerViewEvents.SlashCommandResultOk())
-                                popDraft()
-                            } else {
-                                _viewEvents.post(MessageComposerViewEvents.SlashCommandResultOk())
-                                _viewEvents.post(
-                                        MessageComposerViewEvents
-                                                .ShowMessage(stringProvider.getString(R.string.command_description_discard_session_not_handled))
-                                )
+                            _viewEvents.post(MessageComposerViewEvents.SlashCommandLoading)
+                            viewModelScope.launch(Dispatchers.IO) {
+                                if (room.isEncrypted()) {
+                                    session.cryptoService().discardOutboundSession(room.roomId)
+                                    _viewEvents.post(MessageComposerViewEvents.SlashCommandResultOk())
+                                    popDraft()
+                                } else {
+                                    _viewEvents.post(MessageComposerViewEvents.SlashCommandResultOk())
+                                    _viewEvents.post(
+                                            MessageComposerViewEvents
+                                                    .ShowMessage(stringProvider.getString(R.string.command_description_discard_session_not_handled))
+                                    )
+                                }
                             }
+                            Unit
                         }
                         is ParsedCommand.CreateSpace              -> {
                             _viewEvents.post(MessageComposerViewEvents.SlashCommandLoading)

@@ -18,7 +18,9 @@ package org.matrix.android.sdk.internal.crypto
 
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import org.matrix.android.sdk.api.auth.UserInteractiveAuthInterceptor
@@ -65,6 +67,7 @@ import java.io.File
 import java.nio.charset.Charset
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import kotlin.coroutines.coroutineContext
 import uniffi.olm.OlmMachine as InnerMachine
 import uniffi.olm.ProgressListener as RustProgressListener
 import uniffi.olm.UserIdentity as RustUserIdentity
@@ -166,6 +169,7 @@ internal class OlmMachine(
         device_id: String,
         path: File,
         deviceObserver: DeviceUpdateObserver,
+        private val coroutineScope: CoroutineScope,
         private val requestSender: RequestSender,
 ) {
     private val inner: InnerMachine = InnerMachine(user_id, device_id, path.toString())
@@ -712,19 +716,21 @@ internal class OlmMachine(
         return getUserDevicesMap(userIds)
     }
 
-    suspend fun getLiveUserIdentity(userId: String): LiveData<Optional<MXCrossSigningInfo>> {
-        val identity = this.getIdentity(userId)?.toMxCrossSigningInfo().toOptional()
+    fun getLiveUserIdentity(userId: String): LiveData<Optional<MXCrossSigningInfo>> {
         val liveIdentity = LiveUserIdentity(userId, this.userIdentityUpdateObserver)
-        liveIdentity.value = identity
-
+        coroutineScope.launch {
+            val identity = getIdentity(userId)?.toMxCrossSigningInfo().toOptional()
+            liveIdentity.postValue(identity)
+        }
         return liveIdentity
     }
 
-    suspend fun getLivePrivateCrossSigningKeys(): LiveData<Optional<PrivateKeysInfo>> {
-        val keys = this.exportCrossSigningKeys().toOptional()
+    fun getLivePrivateCrossSigningKeys(): LiveData<Optional<PrivateKeysInfo>> {
         val liveKeys = LivePrivateCrossSigningKeys(this.privateKeysUpdateObserver)
-        liveKeys.value = keys
-
+        coroutineScope.launch {
+            val keys = exportCrossSigningKeys().toOptional()
+            liveKeys.postValue(keys)
+        }
         return liveKeys
     }
 
@@ -738,18 +744,22 @@ internal class OlmMachine(
      *
      * @return The list of Devices or an empty list if there aren't any.
      */
-    suspend fun getLiveDevices(userIds: List<String>): LiveData<List<CryptoDeviceInfo>> {
-        val plainDevices = getCryptoDeviceInfo(userIds)
+    fun getLiveDevices(userIds: List<String>): LiveData<List<CryptoDeviceInfo>> {
         val devices = LiveDevice(userIds, deviceUpdateObserver)
-        devices.value = plainDevices
-
+        // should we use specific context?
+        coroutineScope.launch {
+            val plainDevices = getCryptoDeviceInfo(userIds)
+            devices.postValue(plainDevices)
+        }
         return devices
     }
 
     /** Discard the currently active room key for the given room if there is one. */
     @Throws(CryptoStoreException::class)
-    fun discardRoomKey(roomId: String) {
-        runBlocking { inner.discardRoomKey(roomId) }
+    suspend fun discardRoomKey(roomId: String) {
+        withContext(Dispatchers.IO) {
+            inner.discardRoomKey(roomId)
+        }
     }
 
     /** Get all the verification requests we have with the given user

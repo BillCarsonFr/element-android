@@ -142,13 +142,19 @@ class UnwedgingTest : InstrumentedTest {
         //  - Store the olm session between A&B devices
         // Let us pickle our session with bob here so we can later unpickle it
         // and wedge our session.
-        val sessionIdsForBob = aliceCryptoStore.getDeviceSessionIds(bobSession.cryptoService().getMyDevice().identityKey()!!)
+        val sessionIdsForBob = mTestHelper.runBlockingTest {
+            aliceCryptoStore.getDeviceSessionIds(bobSession.cryptoService().getMyDevice().identityKey()!!)
+        }
         sessionIdsForBob!!.size shouldBe 1
-        val olmSession = aliceCryptoStore.getDeviceSession(sessionIdsForBob.first(), bobSession.cryptoService().getMyDevice().identityKey()!!)!!
+        val olmSession = mTestHelper.runBlockingTest {
+            aliceCryptoStore.getDeviceSession(sessionIdsForBob.first(), bobSession.cryptoService().getMyDevice().identityKey()!!)!!
+        }
 
         val oldSession = serializeForRealm(olmSession.olmSession)
 
-        aliceSession.cryptoService().discardOutboundSession(roomFromAlicePOV.roomId)
+        mTestHelper.runBlockingTest {
+            aliceSession.cryptoService().discardOutboundSession(roomFromAlicePOV.roomId)
+        }
         Thread.sleep(6_000)
 
         latch = CountDownLatch(1)
@@ -172,11 +178,15 @@ class UnwedgingTest : InstrumentedTest {
         // Let us wedge the session now. Set crypto state like after the first message
         Timber.i("## CRYPTO | testUnwedging: wedge the session now. Set crypto state like after the first message")
 
-        aliceCryptoStore.storeSession(OlmSessionWrapper(deserializeFromRealm<OlmSession>(oldSession)!!), bobSession.cryptoService().getMyDevice().identityKey()!!)
+        mTestHelper.runBlockingTest {
+            aliceCryptoStore.storeSession(OlmSessionWrapper(deserializeFromRealm<OlmSession>(oldSession)!!), bobSession.cryptoService().getMyDevice().identityKey()!!)
+        }
         Thread.sleep(6_000)
 
         // Force new session, and key share
-        aliceSession.cryptoService().discardOutboundSession(roomFromAlicePOV.roomId)
+        mTestHelper.runBlockingTest {
+            aliceSession.cryptoService().discardOutboundSession(roomFromAlicePOV.roomId)
+        }
 
         // Wait for the message to be received by Bob
         mTestHelper.waitWithLatch {
@@ -226,7 +236,9 @@ class UnwedgingTest : InstrumentedTest {
             mTestHelper.retryPeriodicallyWithLatch(it) {
                 // we should get back the key and be able to decrypt
                 val result = tryOrNull {
-                    bobSession.cryptoService().decryptEvent(messagesReceivedByBob[0].root, "")
+                    mTestHelper.runBlockingTest {
+                        bobSession.cryptoService().decryptEvent(messagesReceivedByBob[0].root, "")
+                    }
                 }
                 Timber.i("## CRYPTO | testUnwedging: decrypt result  ${result?.clearEvent}")
                 result != null

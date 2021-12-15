@@ -18,6 +18,7 @@ package org.matrix.android.sdk.internal.session.sync.handler.room
 
 import com.zhuinden.monarchy.Monarchy
 import io.realm.Realm
+import kotlinx.coroutines.runBlocking
 import org.matrix.android.sdk.api.session.crypto.CryptoService
 import org.matrix.android.sdk.api.session.crypto.MXCryptoError
 import org.matrix.android.sdk.api.session.events.model.Event
@@ -181,7 +182,10 @@ internal class ThreadsAwarenessHandler @Inject constructor(
         val rootThreadEvent = getEventFromDB(realm, rootThreadEventId) ?: return null
         val rootThreadEventSenderId = rootThreadEvent.senderId ?: return null
 
-        decryptIfNeeded(rootThreadEvent, roomId)
+        // we can't call a suspend call inside a realm transactio
+        runBlocking {
+            decryptIfNeeded(rootThreadEvent, roomId)
+        }
 
         val rootThreadEventBody = getValueFromPayload(rootThreadEvent.mxDecryptionResult?.payload?.toMutableMap(), "body")
 
@@ -212,7 +216,7 @@ internal class ThreadsAwarenessHandler @Inject constructor(
      * Decrypt the event
      */
 
-    private fun decryptIfNeeded(event: Event, roomId: String) {
+    private suspend fun decryptIfNeeded(event: Event, roomId: String) {
         try {
             if (!event.isEncrypted() || event.mxDecryptionResult != null) return
 

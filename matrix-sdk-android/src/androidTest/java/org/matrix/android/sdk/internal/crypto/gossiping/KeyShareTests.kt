@@ -370,7 +370,9 @@ class KeyShareTests : InstrumentedTest {
         }
 
         // we want to discard alice outbound session
-        aliceSession.cryptoService().discardOutboundSession(roomAlicePov.roomId)
+        mTestHelper.runBlockingTest {
+            aliceSession.cryptoService().discardOutboundSession(roomAlicePov.roomId)
+        }
 
         // and now resend a new message to reset index to 0
         mTestHelper.sendTextMessage(roomAlicePov, "After", 1)

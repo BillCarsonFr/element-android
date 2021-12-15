@@ -160,24 +160,22 @@ class RxSession(private val session: Session) {
     }
 
     fun liveUserCryptoDevices(userId: String): Observable<List<CryptoDeviceInfo>> {
-        return session.cryptoService().getLiveCryptoDeviceInfo(userId).asObservable().startWithCallable {
-            session.cryptoService().getCryptoDeviceInfo(userId)
-        }
+        return session.cryptoService().getLiveCryptoDeviceInfo(userId).asObservable()
     }
 
-    fun liveCrossSigningInfo(userId: String): Observable<Optional<MXCrossSigningInfo>> {
-        return session.cryptoService().crossSigningService().getLiveCrossSigningKeys(userId).asObservable()
-                .startWithCallable {
-                    session.cryptoService().crossSigningService().getUserCrossSigningKeys(userId).toOptional()
-                }
-    }
+//    fun liveCrossSigningInfo(userId: String): Observable<Optional<MXCrossSigningInfo>> {
+//        return session.cryptoService().crossSigningService().getLiveCrossSigningKeys(userId).asObservable()
+//                .startWithCallable {
+//                    session.cryptoService().crossSigningService().getUserCrossSigningKeys(userId).toOptional()
+//                }
+//    }
 
-    fun liveCrossSigningPrivateKeys(): Observable<Optional<PrivateKeysInfo>> {
-        return session.cryptoService().crossSigningService().getLiveCrossSigningPrivateKeys().asObservable()
-                .startWithCallable {
-                    session.cryptoService().crossSigningService().getCrossSigningPrivateKeys().toOptional()
-                }
-    }
+//    fun liveCrossSigningPrivateKeys(): Observable<Optional<PrivateKeysInfo>> {
+//        return session.cryptoService().crossSigningService().getLiveCrossSigningPrivateKeys().asObservable()
+//                .startWithCallable {
+//                    session.cryptoService().crossSigningService().getCrossSigningPrivateKeys().toOptional()
+//                }
+//    }
 
     fun liveUserAccountData(types: Set<String>): Observable<List<UserAccountDataEvent>> {
         return session.accountDataService().getLiveUserAccountDataEvents(types).asObservable()
@@ -209,37 +207,37 @@ class RxSession(private val session: Session) {
         return session.getChangeMembershipsLive().asObservable()
     }
 
-    fun liveSecretSynchronisationInfo(): Observable<SecretsSynchronisationInfo> {
-        return Observable.combineLatest<List<UserAccountDataEvent>, Optional<MXCrossSigningInfo>, Optional<PrivateKeysInfo>, SecretsSynchronisationInfo>(
-                liveUserAccountData(setOf(MASTER_KEY_SSSS_NAME, USER_SIGNING_KEY_SSSS_NAME, SELF_SIGNING_KEY_SSSS_NAME, KEYBACKUP_SECRET_SSSS_NAME)),
-                liveCrossSigningInfo(session.myUserId),
-                liveCrossSigningPrivateKeys(),
-                Function3 { _, crossSigningInfo, pInfo ->
-                    // first check if 4S is already setup
-                    val is4SSetup = session.sharedSecretStorageService.isRecoverySetup()
-                    val isCrossSigningEnabled = crossSigningInfo.getOrNull() != null
-                    val isCrossSigningTrusted = crossSigningInfo.getOrNull()?.isTrusted() == true
-                    val allPrivateKeysKnown = pInfo.getOrNull()?.allKnown().orFalse()
-
-                    val keysBackupService = session.cryptoService().keysBackupService()
-                    val currentBackupVersion = keysBackupService.currentBackupVersion
-                    val megolmBackupAvailable = currentBackupVersion != null
-                    val savedBackupKey = keysBackupService.getKeyBackupRecoveryKeyInfo()
-
-                    val megolmKeyKnown = savedBackupKey?.version == currentBackupVersion
-                    SecretsSynchronisationInfo(
-                            isBackupSetup = is4SSetup,
-                            isCrossSigningEnabled = isCrossSigningEnabled,
-                            isCrossSigningTrusted = isCrossSigningTrusted,
-                            allPrivateKeysKnown = allPrivateKeysKnown,
-                            megolmBackupAvailable = megolmBackupAvailable,
-                            megolmSecretKnown = megolmKeyKnown,
-                            isMegolmKeyIn4S = session.sharedSecretStorageService.isMegolmKeyInBackup()
-                    )
-                }
-        )
-                .distinctUntilChanged()
-    }
+//    fun liveSecretSynchronisationInfo(): Observable<SecretsSynchronisationInfo> {
+//        return Observable.combineLatest<List<UserAccountDataEvent>, Optional<MXCrossSigningInfo>, Optional<PrivateKeysInfo>, SecretsSynchronisationInfo>(
+//                liveUserAccountData(setOf(MASTER_KEY_SSSS_NAME, USER_SIGNING_KEY_SSSS_NAME, SELF_SIGNING_KEY_SSSS_NAME, KEYBACKUP_SECRET_SSSS_NAME)),
+//                liveCrossSigningInfo(session.myUserId),
+//                liveCrossSigningPrivateKeys(),
+//                Function3 { _, crossSigningInfo, pInfo ->
+//                    // first check if 4S is already setup
+//                    val is4SSetup = session.sharedSecretStorageService.isRecoverySetup()
+//                    val isCrossSigningEnabled = crossSigningInfo.getOrNull() != null
+//                    val isCrossSigningTrusted = crossSigningInfo.getOrNull()?.isTrusted() == true
+//                    val allPrivateKeysKnown = pInfo.getOrNull()?.allKnown().orFalse()
+//
+//                    val keysBackupService = session.cryptoService().keysBackupService()
+//                    val currentBackupVersion = keysBackupService.currentBackupVersion
+//                    val megolmBackupAvailable = currentBackupVersion != null
+//                    val savedBackupKey = keysBackupService.getKeyBackupRecoveryKeyInfo()
+//
+//                    val megolmKeyKnown = savedBackupKey?.version == currentBackupVersion
+//                    SecretsSynchronisationInfo(
+//                            isBackupSetup = is4SSetup,
+//                            isCrossSigningEnabled = isCrossSigningEnabled,
+//                            isCrossSigningTrusted = isCrossSigningTrusted,
+//                            allPrivateKeysKnown = allPrivateKeysKnown,
+//                            megolmBackupAvailable = megolmBackupAvailable,
+//                            megolmSecretKnown = megolmKeyKnown,
+//                            isMegolmKeyIn4S = session.sharedSecretStorageService.isMegolmKeyInBackup()
+//                    )
+//                }
+//        )
+//                .distinctUntilChanged()
+//    }
 
     fun lookupThreePid(threePid: ThreePid): Single<Optional<FoundThreePid>> = rxSingle {
         session.identityService().lookUp(listOf(threePid)).firstOrNull().toOptional()

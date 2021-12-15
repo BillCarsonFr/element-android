@@ -58,6 +58,7 @@ import im.vector.app.features.home.room.detail.timeline.url.PreviewUrlRetriever
 import im.vector.app.features.media.ImageContentRenderer
 import im.vector.app.features.media.VideoContentRenderer
 import im.vector.app.features.settings.VectorPreferences
+import kotlinx.coroutines.runBlocking
 import org.matrix.android.sdk.api.session.Session
 import org.matrix.android.sdk.api.session.events.model.EventType
 import org.matrix.android.sdk.api.session.events.model.toModel

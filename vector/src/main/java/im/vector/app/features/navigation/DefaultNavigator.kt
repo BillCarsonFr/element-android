@@ -74,6 +74,7 @@ import im.vector.app.features.roomdirectory.roompreview.RoomPreviewData
 import im.vector.app.features.roommemberprofile.RoomMemberProfileActivity
 import im.vector.app.features.roommemberprofile.RoomMemberProfileArgs
 import im.vector.app.features.roomprofile.RoomProfileActivity
+import im.vector.app.features.session.coroutineScope
 import im.vector.app.features.settings.VectorPreferences
 import im.vector.app.features.settings.VectorSettingsActivity
 import im.vector.app.features.share.SharedData
@@ -87,6 +88,10 @@ import im.vector.app.features.terms.ReviewTermsActivity
 import im.vector.app.features.widgets.WidgetActivity
 import im.vector.app.features.widgets.WidgetArgsBuilder
 import im.vector.app.space
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.matrix.android.sdk.api.extensions.tryOrNull
 import org.matrix.android.sdk.api.session.crypto.verification.SasVerificationTransaction
 import org.matrix.android.sdk.api.session.permalinks.PermalinkData
 import org.matrix.android.sdk.api.session.room.model.roomdirectory.PublicRoom
@@ -177,37 +182,51 @@ class DefaultNavigator @Inject constructor(
 
     override fun requestSessionVerification(context: Context, otherSessionId: String) {
         val session = sessionHolder.getSafeActiveSession() ?: return
-        val pr = session.cryptoService().verificationService().requestKeyVerification(
-                supportedVerificationMethodsProvider.provide(),
-                session.myUserId,
-                listOf(otherSessionId)
-        )
-        if (context is AppCompatActivity) {
-            VerificationBottomSheet.withArgs(
-                    roomId = null,
-                    otherUserId = session.myUserId,
-                    transactionId = pr.transactionId
-            ).show(context.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+        session.coroutineScope.launch {
+            val pr = session.cryptoService().verificationService().requestKeyVerification(
+                    supportedVerificationMethodsProvider.provide(),
+                    session.myUserId,
+                    listOf(otherSessionId)
+            )
+
+            withContext(Dispatchers.Main) {
+                if (context is AppCompatActivity && !context.isDestroyed) {
+                    VerificationBottomSheet.withArgs(
+                            roomId = null,
+                            otherUserId = session.myUserId,
+                            transactionId = pr.transactionId
+                    ).show(context.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+                }
+            }
         }
     }
 
     override fun requestSelfSessionVerification(context: Context) {
         val session = sessionHolder.getSafeActiveSession() ?: return
-        val otherSessions = session.cryptoService()
-                .getCryptoDeviceInfo(session.myUserId)
-                .filter { it.deviceId != session.sessionParams.deviceId }
-                .map { it.deviceId }
-        if (context is AppCompatActivity) {
+        val activity = context as? AppCompatActivity ?: return
+        session.coroutineScope.launch {
+            val otherSessions = session.cryptoService()
+                    .getCryptoDeviceInfo(session.myUserId)
+                    .filter { it.deviceId != session.sessionParams.deviceId }
+                    .map { it.deviceId }
             if (otherSessions.isNotEmpty()) {
                 val pr = session.cryptoService().verificationService().requestKeyVerification(
                         supportedVerificationMethodsProvider.provide(),
                         session.myUserId,
                         otherSessions)
-                VerificationBottomSheet.forSelfVerification(session, pr.transactionId ?: pr.localId)
-                        .show(context.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+                withContext(Dispatchers.Main) {
+                    if (!activity.isDestroyed) {
+                        VerificationBottomSheet.forSelfVerification(session, pr.transactionId ?: pr.localId)
+                                .show(activity.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+                    }
+                }
             } else {
-                VerificationBottomSheet.forSelfVerification(session)
-                        .show(context.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+                withContext(Dispatchers.Main) {
+                    if (!activity.isDestroyed) {
+                        VerificationBottomSheet.forSelfVerification(session)
+                                .show(activity.supportFragmentManager, VerificationBottomSheet.WAITING_SELF_VERIF_TAG)
+                    }
+                }
             }
         }
     }
@@ -370,13 +389,23 @@ class DefaultNavigator @Inject constructor(
     override fun openKeysBackupSetup(context: Context, showManualExport: Boolean) {
         // if cross signing is enabled and trusted or not set up at all we should propose full 4S
         sessionHolder.getSafeActiveSession()?.let { session ->
-            if (session.cryptoService().crossSigningService().getMyCrossSigningKeys() == null ||
-                    session.cryptoService().crossSigningService().canCrossSign()) {
-                (context as? AppCompatActivity)?.let {
-                    BootstrapBottomSheet.show(it.supportFragmentManager, SetupMode.NORMAL)
+            session.coroutineScope.launch {
+                if (session.cryptoService().crossSigningService().getMyCrossSigningKeys() == null ||
+                        session.cryptoService().crossSigningService().canCrossSign()) {
+                    withContext(Dispatchers.Main) {
+                        (context as? AppCompatActivity)?.let {
+                            if (!it.isDestroyed) {
+                                BootstrapBottomSheet.show(it.supportFragmentManager, SetupMode.NORMAL)
+                            }
+                        }
+                    }
+                } else {
+                    withContext(Dispatchers.Main) {
+                        tryOrNull {
+                            context.startActivity(KeysBackupSetupActivity.intent(context, showManualExport))
+                        }
+                    }
                 }
-            } else {
-                context.startActivity(KeysBackupSetupActivity.intent(context, showManualExport))
             }
         }
     }

@@ -91,12 +91,7 @@ class BootstrapCrossSigningTask @Inject constructor(
             )
 
             try {
-                awaitCallback<Unit> {
-                    crossSigningService.initializeCrossSigning(
-                            params.userInteractiveAuthInterceptor,
-                            it
-                    )
-                }
+                crossSigningService.initializeCrossSigning(params.userInteractiveAuthInterceptor)
                 if (params.setupMode == SetupMode.CROSS_SIGNING_ONLY) {
                     return BootstrapResult.SuccessCrossSigningOnly
                 }

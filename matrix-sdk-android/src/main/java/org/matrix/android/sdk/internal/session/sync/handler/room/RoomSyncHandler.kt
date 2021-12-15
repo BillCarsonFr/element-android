@@ -18,6 +18,7 @@ package org.matrix.android.sdk.internal.session.sync.handler.room
 
 import io.realm.Realm
 import io.realm.kotlin.createObject
+import kotlinx.coroutines.runBlocking
 import org.matrix.android.sdk.api.session.crypto.MXCryptoError
 import org.matrix.android.sdk.api.session.events.model.Event
 import org.matrix.android.sdk.api.session.events.model.EventType
@@ -88,10 +89,10 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
     }
 
     suspend fun handle(realm: Realm,
-               roomsSyncResponse: RoomsSyncResponse,
-               isInitialSync: Boolean,
-               aggregator: SyncResponsePostTreatmentAggregator,
-               reporter: ProgressReporter? = null) {
+                       roomsSyncResponse: RoomsSyncResponse,
+                       isInitialSync: Boolean,
+                       aggregator: SyncResponsePostTreatmentAggregator,
+                       reporter: ProgressReporter? = null) {
         Timber.v("Execute transaction from $this")
         handleRoomSync(realm, HandlingStrategy.JOINED(roomsSyncResponse.join), isInitialSync, aggregator, reporter)
         handleRoomSync(realm, HandlingStrategy.INVITED(roomsSyncResponse.invite), isInitialSync, aggregator, reporter)
@@ -106,7 +107,7 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
     }
     // PRIVATE METHODS *****************************************************************************
 
-    private suspend fun handleRoomSync(realm: Realm,
+    private fun handleRoomSync(realm: Realm,
                                handlingStrategy: HandlingStrategy,
                                isInitialSync: Boolean,
                                aggregator: SyncResponsePostTreatmentAggregator,
@@ -143,7 +144,7 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
         realm.insertOrUpdate(rooms)
     }
 
-    private suspend fun insertJoinRoomsFromInitSync(realm: Realm,
+    private fun insertJoinRoomsFromInitSync(realm: Realm,
                                             handlingStrategy: HandlingStrategy.JOINED,
                                             syncLocalTimeStampMillis: Long,
                                             aggregator: SyncResponsePostTreatmentAggregator,
@@ -185,7 +186,7 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
         }
     }
 
-    private suspend fun handleJoinedRoom(realm: Realm,
+    private fun handleJoinedRoom(realm: Realm,
                                  roomId: String,
                                  roomSync: RoomSync,
                                  insertType: EventInsertType,
@@ -335,7 +336,7 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
         return roomEntity
     }
 
-    private suspend fun handleTimelineEvents(realm: Realm,
+    private fun handleTimelineEvents(realm: Realm,
                                      roomId: String,
                                      roomEntity: RoomEntity,
                                      eventList: List<Event>,
@@ -425,8 +426,12 @@ internal class RoomSyncHandler @Inject constructor(private val readReceiptHandle
 
     private fun decryptIfNeeded(event: Event, roomId: String) {
         try {
-            // Event from sync does not have roomId, so add it to the event first
-            val result = cryptoService.decryptEvent(event.copy(roomId = roomId), "")
+            // we can't run a suspend call during realm transaction because after
+            // the call we could have switch thread that would break the transaction
+            val result = runBlocking {
+                // Event from sync does not have roomId, so add it to the event first
+                cryptoService.decryptEvent(event.copy(roomId = roomId), "")
+            }
             event.mxDecryptionResult = OlmDecryptionResult(
                     payload = result.clearEvent,
                     senderKey = result.senderCurve25519Key,

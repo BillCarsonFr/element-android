@@ -67,20 +67,18 @@ internal class QrCodeVerification(
         }
 
     /** Pass the data from a scanned QR code into the QR code verification object */
-    override fun userHasScannedOtherQrCode(otherQrCodeText: String) {
-        runBlocking {
-            request.scanQrCode(otherQrCodeText)
-        }
+    override suspend fun userHasScannedOtherQrCode(otherQrCodeText: String) {
+        request.scanQrCode(otherQrCodeText)
         dispatchTxUpdated()
     }
 
     /** Confirm that the other side has indeed scanned the QR code we presented */
-    override fun otherUserScannedMyQrCode() {
-        runBlocking { confirm() }
+    override suspend fun otherUserScannedMyQrCode() {
+        confirm()
     }
 
     /** Cancel the QR code verification, denying that the other side has scanned the QR code */
-    override fun otherUserDidNotScannedMyQrCode() {
+    override suspend fun otherUserDidNotScannedMyQrCode() {
         // TODO Is this code correct here? The old code seems to do this
         cancelHelper(CancelCode.MismatchedKeys)
     }
@@ -140,7 +138,7 @@ internal class QrCodeVerification(
      *
      * The method turns into a noop, if the verification flow has already been cancelled.
      * */
-    override fun cancel() {
+    override suspend fun cancel() {
         cancelHelper(CancelCode.User)
     }
 
@@ -155,7 +153,7 @@ internal class QrCodeVerification(
      *
      * @param code The cancel code that should be given as the reason for the cancellation.
      * */
-    override fun cancel(code: CancelCode) {
+    override suspend fun cancel(code: CancelCode) {
         cancelHelper(code)
     }
 
@@ -190,11 +188,11 @@ internal class QrCodeVerification(
         }
     }
 
-    private fun cancelHelper(code: CancelCode) {
+    private suspend fun cancelHelper(code: CancelCode) {
         val request = this.machine.cancelVerification(this.request.otherUser(), this.request.flowId(), code.value)
 
         if (request != null) {
-            runBlocking { sender.sendVerificationRequest(request) }
+            sender.sendVerificationRequest(request)
             dispatchTxUpdated()
         }
     }

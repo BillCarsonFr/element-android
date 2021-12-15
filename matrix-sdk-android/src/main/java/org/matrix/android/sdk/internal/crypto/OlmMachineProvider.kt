@@ -16,6 +16,7 @@
 
 package org.matrix.android.sdk.internal.crypto
 
+import kotlinx.coroutines.CoroutineScope
 import org.matrix.android.sdk.internal.di.DeviceId
 import org.matrix.android.sdk.internal.di.SessionFilesDirectory
 import org.matrix.android.sdk.internal.di.UserId
@@ -28,10 +29,11 @@ internal class OlmMachineProvider @Inject constructor(
         @UserId private val userId: String,
         @DeviceId private val deviceId: String?,
         @SessionFilesDirectory private val dataDir: File,
+        private val coroutineScope: CoroutineScope,
         requestSender: RequestSender
 ) {
 
     private val deviceObserver: DeviceUpdateObserver = DeviceUpdateObserver()
 
-    var olmMachine: OlmMachine = OlmMachine(userId, deviceId!!, dataDir, deviceObserver, requestSender)
+    var olmMachine: OlmMachine = OlmMachine(userId, deviceId!!, dataDir, deviceObserver, coroutineScope, requestSender)
 }

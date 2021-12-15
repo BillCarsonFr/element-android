@@ -136,11 +136,13 @@ class VerifySessionInteractiveTest : VerificationTestBase() {
         onView(withId(R.id.bottomSheetFragmentContainer))
                 .check(matches(not(hasDescendant(withText(R.string.verification_cannot_access_other_session)))))
 
-        val request = existingSession!!.cryptoService().verificationService().requestKeyVerification(
-                listOf(VerificationMethod.SAS, VerificationMethod.QR_CODE_SCAN, VerificationMethod.QR_CODE_SHOW),
-                existingSession!!.myUserId,
-                listOf(uiSession.sessionParams.deviceId!!)
-        )
+        val request = runBlockingTest {
+            existingSession!!.cryptoService().verificationService().requestKeyVerification(
+                    listOf(VerificationMethod.SAS, VerificationMethod.QR_CODE_SCAN, VerificationMethod.QR_CODE_SHOW),
+                    existingSession!!.myUserId,
+                    listOf(uiSession.sessionParams.deviceId!!)
+            )
+        }
 
         val transactionId = request.transactionId!!
         val sasReadyIdle = verificationStateIdleResource(transactionId, VerificationTxState.ShortCodeReady, uiSession)

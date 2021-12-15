@@ -58,9 +58,11 @@ import im.vector.app.features.pin.PinMode
 import im.vector.app.features.raw.wellknown.getElementWellknown
 import im.vector.app.features.raw.wellknown.isE2EByDefault
 import im.vector.app.features.themes.ThemeUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import me.gujun.android.span.span
 import org.matrix.android.sdk.api.MatrixCallback
 import org.matrix.android.sdk.api.extensions.getFingerprintHumanReadable
@@ -512,15 +514,19 @@ class VectorSettingsSecurityPrivacyFragment @Inject constructor(
         }
 
         // crypto section: device key (fingerprint)
-        val deviceInfo = session.cryptoService().getDeviceInfo(userId, deviceId)
+        // TODO use a view model
+        viewLifecycleOwner.lifecycleScope.launch {
+            val deviceInfo = session.cryptoService().getDeviceInfo(userId, deviceId)
+            val fingerprint = deviceInfo?.fingerprint()
+            if (fingerprint?.isNotEmpty() == true) {
+                withContext(Dispatchers.Main) {
+                    cryptoInfoDeviceKeyPreference.summary = deviceInfo.getFingerprintHumanReadable()
 
-        val fingerprint = deviceInfo?.fingerprint()
-        if (fingerprint?.isNotEmpty() == true) {
-            cryptoInfoDeviceKeyPreference.summary = deviceInfo.getFingerprintHumanReadable()
-
-            cryptoInfoDeviceKeyPreference.setOnPreferenceClickListener {
-                copyToClipboard(requireActivity(), fingerprint)
-                true
+                    cryptoInfoDeviceKeyPreference.setOnPreferenceClickListener {
+                        copyToClipboard(requireActivity(), fingerprint)
+                        true
+                    }
+                }
             }
         }
 
@@ -538,28 +544,39 @@ class VectorSettingsSecurityPrivacyFragment @Inject constructor(
     // ==============================================================================================================
 
     private fun refreshMyDevice() {
-        session.cryptoService().getUserDevices(session.myUserId).map {
-            DeviceInfo(
-                    userId = session.myUserId,
-                    deviceId = it.deviceId,
-                    displayName = it.displayName()
-            )
-        }.let {
-            refreshCryptographyPreference(it)
-        }
-        // TODO Move to a ViewModel...
-        session.cryptoService().fetchDevicesList(object : MatrixCallback<DevicesListResponse> {
-            override fun onSuccess(data: DevicesListResponse) {
-                if (isAdded) {
-                    refreshCryptographyPreference(data.devices.orEmpty())
-                }
+        // TODO should have a view model to manage that better
+        viewLifecycleOwner.lifecycleScope.launch {
+            session.cryptoService().getUserDevices(session.myUserId).map {
+                DeviceInfo(
+                        userId = session.myUserId,
+                        deviceId = it.deviceId,
+                        displayName = it.displayName()
+                )
+            }.let {
+                refreshCryptographyPreference(it)
             }
+            // TODO Move to a ViewModel...
+            session.cryptoService().fetchDevicesList(object : MatrixCallback<DevicesListResponse> {
+                override fun onSuccess(data: DevicesListResponse) {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        withContext(Dispatchers.Main) {
+                            if (isAdded) {
+                                refreshCryptographyPreference(data.devices.orEmpty())
+                            }
+                        }
+                    }
+                }
 
-            override fun onFailure(failure: Throwable) {
-                if (isAdded) {
-                    refreshCryptographyPreference(emptyList())
+                override fun onFailure(failure: Throwable) {
+                    viewLifecycleOwner.lifecycleScope.launch {
+                        withContext(Dispatchers.Main) {
+                            if (isAdded) {
+                                refreshCryptographyPreference(emptyList())
+                            }
+                        }
+                    }
                 }
-            }
-        })
+            })
+        }
     }
 }

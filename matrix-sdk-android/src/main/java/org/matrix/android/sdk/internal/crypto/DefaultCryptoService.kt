@@ -214,8 +214,8 @@ internal class DefaultCryptoService @Inject constructor(
         return if (longFormat) "Rust SDK 0.3" else "0.3"
     }
 
-    override fun getMyDevice(): CryptoDeviceInfo {
-        return runBlocking { olmMachine.ownDevice() }
+    override suspend fun getMyDevice(): CryptoDeviceInfo {
+        return olmMachine.ownDevice()
     }
 
     override fun fetchDevicesList(callback: MatrixCallback<DevicesListResponse>) {
@@ -406,20 +406,16 @@ internal class DefaultCryptoService @Inject constructor(
      * @param userId   the user id
      * @param deviceId the device id
      */
-    override fun getDeviceInfo(userId: String, deviceId: String?): CryptoDeviceInfo? {
+    override suspend fun getDeviceInfo(userId: String, deviceId: String?): CryptoDeviceInfo? {
         return if (userId.isNotEmpty() && !deviceId.isNullOrEmpty()) {
-            runBlocking {
-                this@DefaultCryptoService.olmMachine.getCryptoDeviceInfo(userId, deviceId)
-            }
+            olmMachine.getCryptoDeviceInfo(userId, deviceId)
         } else {
             null
         }
     }
 
-    override fun getCryptoDeviceInfo(userId: String): List<CryptoDeviceInfo> {
-        return runBlocking {
-            this@DefaultCryptoService.olmMachine.getCryptoDeviceInfo(userId)
-        }
+    override suspend fun getCryptoDeviceInfo(userId: String): List<CryptoDeviceInfo> {
+        return olmMachine.getCryptoDeviceInfo(userId)
     }
 
     override fun getLiveCryptoDeviceInfo(userId: String): LiveData<List<CryptoDeviceInfo>> {
@@ -427,9 +423,7 @@ internal class DefaultCryptoService @Inject constructor(
     }
 
     override fun getLiveCryptoDeviceInfo(userIds: List<String>): LiveData<List<CryptoDeviceInfo>> {
-        return runBlocking {
-            this@DefaultCryptoService.olmMachine.getLiveDevices(userIds) // ?: LiveDevice(userIds, deviceObserver)
-        }
+        return olmMachine.getLiveDevices(userIds)
     }
 
     /**
@@ -498,7 +492,7 @@ internal class DefaultCryptoService @Inject constructor(
     /**
      * @return the stored device keys for a user.
      */
-    override fun getUserDevices(userId: String): MutableList<CryptoDeviceInfo> {
+    override suspend fun getUserDevices(userId: String): MutableList<CryptoDeviceInfo> {
         return this.getCryptoDeviceInfo(userId).toMutableList()
     }
 
@@ -560,7 +554,7 @@ internal class DefaultCryptoService @Inject constructor(
         }
     }
 
-    override fun discardOutboundSession(roomId: String) {
+    override suspend fun discardOutboundSession(roomId: String) {
         olmMachine.discardRoomKey(roomId)
     }
 
@@ -572,10 +566,8 @@ internal class DefaultCryptoService @Inject constructor(
      * @return the MXEventDecryptionResult data, or throw in case of error
      */
     @Throws(MXCryptoError::class)
-    override fun decryptEvent(event: Event, timeline: String): MXEventDecryptionResult {
-        return runBlocking {
-            olmMachine.decryptRoomEvent(event)
-        }
+    override suspend fun decryptEvent(event: Event, timeline: String): MXEventDecryptionResult {
+        return olmMachine.decryptRoomEvent(event)
     }
 
     /**

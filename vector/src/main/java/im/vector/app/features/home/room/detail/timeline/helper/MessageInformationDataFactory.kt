@@ -27,6 +27,7 @@ import im.vector.app.features.home.room.detail.timeline.item.ReactionInfoData
 import im.vector.app.features.home.room.detail.timeline.item.ReferencesInfoData
 import im.vector.app.features.home.room.detail.timeline.item.SendStateDecoration
 import im.vector.app.features.settings.VectorPreferences
+import kotlinx.coroutines.runBlocking
 import org.matrix.android.sdk.api.crypto.VerificationState
 import org.matrix.android.sdk.api.extensions.orFalse
 import org.matrix.android.sdk.api.session.Session
@@ -75,7 +76,10 @@ class MessageInformationDataFactory @Inject constructor(private val session: Ses
 
         val time = dateFormatter.format(event.root.originServerTs, DateFormatKind.MESSAGE_SIMPLE)
         val roomSummary = params.partialState.roomSummary
-        val e2eDecoration = getE2EDecoration(roomSummary, event)
+        // We should not do a query to crypto module to get proper E2E decoration
+        // It would be better to have the timelineevent decorated with that and
+        // updated when needed
+        val e2eDecoration = runBlocking { getE2EDecoration(roomSummary, event) }
 
         // SendState Decoration
         val isSentByMe = event.root.senderId == session.myUserId
@@ -141,7 +145,7 @@ class MessageInformationDataFactory @Inject constructor(private val session: Ses
         }
     }
 
-    private fun getE2EDecoration(roomSummary: RoomSummary?, event: TimelineEvent): E2EDecoration {
+    private suspend fun getE2EDecoration(roomSummary: RoomSummary?, event: TimelineEvent): E2EDecoration {
         return if (
                 event.root.sendState == SendState.SYNCED &&
                 roomSummary?.isEncrypted.orFalse() &&
