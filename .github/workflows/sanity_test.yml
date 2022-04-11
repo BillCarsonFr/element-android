@@ -69,7 +69,7 @@ jobs:
             adb logcat >> emulator.log &
             ./gradlew $CI_GRADLE_ARG_PROPERTIES -PallWarningsAsErrors=false connectedGplayDebugAndroidTest -Pandroid.testInstrumentationRunnerArguments.class=im.vector.app.ui.UiAllScreensSanityTest || adb pull storage/emulated/0/Pictures/failure_screenshots && exit 1
       - name: Upload Failing Test Report Log
-        uses: actions/upload-artifact@v2
+        uses: actions/upload-artifact@v3
         if: failure()
         with:
           name: sanity-error-results
